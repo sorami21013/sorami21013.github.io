@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>単語帳アプリ（Excel対応）</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Excel(.xlsx)を読み込むためのライブラリ（SheetJS） -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: #f4f4f7;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 800px;
+      margin: 24px;
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+      padding: 24px 28px 28px;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      margin: 0 0 4px;
+    }
+
+    .subtitle {
+      color: #666;
+      font-size: 0.9rem;
+      margin-bottom: 20px;
+    }
+
+    .form-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .form-row input[type="text"] {
+      flex: 1 1 160px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #d0d0dc;
+      font-size: 0.95rem;
+    }
+
+    .form-row input[type="text"]:focus {
+      outline: none;
+      border-color: #4f46e5;
+      box-shadow: 0 0 0 2px rgba(79,70,229,0.15);
+    }
+
+    .form-row input[type="file"] {
+      flex: 1 1 200px;
+      font-size: 0.85rem;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 999px;
+      padding: 8px 16px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: transform 0.05s ease-out, box-shadow 0.05s ease-out, background 0.15s;
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background: #4f46e5;
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(79,70,229,0.25);
+    }
+
+    .btn-primary:hover {
+      background: #4338ca;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 14px rgba(79,70,229,0.32);
+    }
+
+    .btn-secondary {
+      background: #eef1ff;
+      color: #333;
+    }
+
+    .btn-secondary:hover {
+      background: #e0e4ff;
+      transform: translateY(-1px);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: #777;
+      border-radius: 999px;
+    }
+
+    .btn-ghost:hover {
+      background: #f2f2f7;
+      transform: translateY(-1px);
+    }
+
+    .section-title {
+      font-size: 1rem;
+      margin: 18px 0 8px;
+      font-weight: 600;
+    }
+
+    .hint {
+      font-size: 0.78rem;
+      color: #888;
+      margin-bottom: 4px;
+    }
+
+    .flashcard-container {
+      margin-top: 8px;
+      border-radius: 16px;
+      padding: 20px;
+      border: 1px solid #e2e2ee;
+      background: linear-gradient(135deg, #fdfbff, #f3f4ff);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .card {
+      border-radius: 14px;
+      padding: 24px 20px;
+      background: #ffffff;
+      border: 1px solid #e0e0f0;
+      min-height: 90px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: 1.3rem;
+      font-weight: 500;
+    }
+
+    .card-side-label {
+      font-size: 0.8rem;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .card-text-empty {
+      color: #aaa;
+      font-size: 0.95rem;
+    }
+
+    .card-controls {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+
+    .card-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: #777;
+      margin-top: 2px;
+    }
+
+    .word-list {
+      margin-top: 12px;
+      max-height: 220px;
+      overflow: auto;
+      border-radius: 12px;
+      border: 1px solid #e4e4f0;
+      background: #fafafe;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+
+    th, td {
+      padding: 6px 10px;
+      border-bottom: 1px solid #ececf5;
+    }
+
+    th {
+      background: #f3f4ff;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      text-align: left;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .cell-en {
+      font-weight: 500;
+    }
+
+    .cell-jp {
+      color: #444;
+    }
+
+    .empty-list {
+      font-size: 0.88rem;
+      color: #888;
+      padding: 10px;
+      text-align: center;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.75rem;
+      background: #eef1ff;
+      color: #4f46e5;
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+
+    .top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 8px;
+    }
+
+    .top-row-right {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      font-size: 0.8rem;
+      color: #777;
+    }
+
+    @media (max-width: 600px) {
+      .app {
+        margin: 12px;
+        padding: 18px 16px 20px;
+      }
+      h1 {
+        font-size: 1.3rem;
+      }
+      .card {
+        font-size: 1.15rem;
+        padding: 18px 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="top-row">
+      <div>
+        <h1>英語単語帳アプリ（Excel対応）</h1>
+        <div class="subtitle">Excel から単語を読み込み、手入力でも追加できるフラッシュカード</div>
+      </div>
+      <div class="top-row-right">
+        <span class="tag">保存先: ブラウザ</span>
+      </div>
+    </div>
+
+    <!-- 手入力で追加 -->
+    <div class="section-title">単語を追加（手入力）</div>
+    <div class="form-row">
+      <input id="englishInput" type="text" placeholder="English（例: empirical）" />
+      <input id="japaneseInput" type="text" placeholder="日本語訳（例: 実証的）" />
+      <button id="addButton" class="btn btn-primary" type="button">単語を追加</button>
+    </div>
+
+    <!-- Excel から読み込み -->
+    <div class="section-title">Excel から読み込む</div>
+    <div class="hint">※ 1行目が <code>English</code> / <code>Japanese</code> のヘッダーになっている形式（先ほどのExcelと同じ）</div>
+    <div class="form-row">
+      <input id="excelInput" type="file" accept=".xlsx,.xls" />
+      <button id="importButton" class="btn btn-secondary" type="button">Excelを読み込む</button>
+    </div>
+
+    <!-- フラッシュカード表示 -->
+    <div class="section-title">フラッシュカード</div>
+    <div class="flashcard-container">
+      <div class="card-side-label" id="cardSideLabel">SIDE: English</div>
+      <div class="card" id="flashcard">
+        <span class="card-text-empty">まだ単語が登録されていません。</span>
+      </div>
+      <div class="card-controls">
+        <button class="btn btn-secondary" id="prevButton" type="button">前へ</button>
+        <button class="btn btn-secondary" id="nextButton" type="button">次へ</button>
+        <button class="btn btn-secondary" id="randomButton" type="button">ランダム</button>
+        <button class="btn btn-ghost" id="flipButton" type="button">表裏を反転</button>
+      </div>
+      <div class="card-meta">
+        <span id="cardIndexLabel">0 / 0</span>
+        <button class="btn btn-ghost" id="clearAllButton" type="button">全単語を削除</button>
+      </div>
+    </div>
+
+    <!-- 単語一覧 -->
+    <div class="section-title">登録されている単語一覧</div>
+    <div class="word-list" id="wordListContainer">
+      <div class="empty-list">単語がまだありません。上のフォームやExcelから追加してください。</div>
+    </div>
+  </div>
+
+  <script>
+    // ----- データ管理 -----
+    const STORAGE_KEY = "vocab_words_v1";
+
+    /** 単語の配列: { en: string, jp: string } */
+    let words = [];
+    let currentIndex = 0;
+    let showEnglishSide = true; // true: English, false: Japanese
+
+    const englishInput = document.getElementById("englishInput");
+    const japaneseInput = document.getElementById("japaneseInput");
+    const addButton = document.getElementById("addButton");
+
+    const flashcard = document.getElementById("flashcard");
+    const cardSideLabel = document.getElementById("cardSideLabel");
+    const cardIndexLabel = document.getElementById("cardIndexLabel");
+    const prevButton = document.getElementById("prevButton");
+    const nextButton = document.getElementById("nextButton");
+    const randomButton = document.getElementById("randomButton");
+    const flipButton = document.getElementById("flipButton");
+    const clearAllButton = document.getElementById("clearAllButton");
+
+    const wordListContainer = document.getElementById("wordListContainer");
+
+    const excelInput = document.getElementById("excelInput");
+    const importButton = document.getElementById("importButton");
+
+    // ローカルストレージから読み込み
+    function loadWords() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            words = parsed;
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load words:", e);
+      }
+    }
+
+    // ローカルストレージへ保存
+    function saveWords() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(words));
+    }
+
+    // ----- UI更新 -----
+
+    function updateFlashcard() {
+      flashcard.innerHTML = "";
+
+      if (words.length === 0) {
+        const span = document.createElement("span");
+        span.className = "card-text-empty";
+        span.textContent = "まだ単語が登録されていません。上のフォームやExcelから追加してください。";
+        flashcard.appendChild(span);
+        cardIndexLabel.textContent = "0 / 0";
+        return;
+      }
+
+      // インデックスが範囲外にならないように調整
+      if (currentIndex < 0) currentIndex = 0;
+      if (currentIndex >= words.length) currentIndex = words.length - 1;
+
+      const word = words[currentIndex];
+      const span = document.createElement("span");
+      span.textContent = showEnglishSide ? word.en : word.jp;
+      flashcard.appendChild(span);
+
+      cardSideLabel.textContent = showEnglishSide ? "SIDE: English" : "SIDE: 日本語";
+      cardIndexLabel.textContent = (currentIndex + 1) + " / " + words.length;
+    }
+
+    function renderWordList() {
+      wordListContainer.innerHTML = "";
+
+      if (words.length === 0) {
+        const div = document.createElement("div");
+        div.className = "empty-list";
+        div.textContent = "単語がまだありません。上のフォームやExcelから追加してください。";
+        wordListContainer.appendChild(div);
+        return;
+      }
+
+      const table = document.createElement("table");
+      const thead = document.createElement("thead");
+      const headerRow = document.createElement("tr");
+      ["English", "日本語訳", "操作"].forEach(text => {
+        const th = document.createElement("th");
+        th.textContent = text;
+        headerRow.appendChild(th);
+      });
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement("tbody");
+
+      words.forEach((word, index) => {
+        const tr = document.createElement("tr");
+
+        const tdEn = document.createElement("td");
+        tdEn.className = "cell-en";
+        tdEn.textContent = word.en;
+
+        const tdJp = document.createElement("td");
+        tdJp.className = "cell-jp";
+        tdJp.textContent = word.jp;
+
+        const tdAction = document.createElement("td");
+        const delButton = document.createElement("button");
+        delButton.textContent = "削除";
+        delButton.className = "btn btn-ghost";
+        delButton.style.fontSize = "0.75rem";
+        delButton.addEventListener("click", () => {
+          if (confirm(`「${word.en}」を削除しますか？`)) {
+            words.splice(index, 1);
+            if (currentIndex >= words.length) {
+              currentIndex = words.length - 1;
+            }
+            saveWords();
+            renderWordList();
+            updateFlashcard();
+          }
+        });
+        tdAction.appendChild(delButton);
+
+        tr.appendChild(tdEn);
+        tr.appendChild(tdJp);
+        tr.appendChild(tdAction);
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(tbody);
+      wordListContainer.appendChild(table);
+    }
+
+    // ----- 単語追加（手入力） -----
+    function addWord() {
+      const en = englishInput.value.trim();
+      const jp = japaneseInput.value.trim();
+
+      if (!en || !jp) {
+        alert("English と 日本語訳の両方を入力してください。");
+        return;
+      }
+
+      // すでに同じ英単語がある場合は上書きするか確認
+      const existingIndex = words.findIndex(w => w.en.toLowerCase() === en.toLowerCase());
+      if (existingIndex !== -1) {
+        const overwrite = confirm(`「${en}」はすでに登録されています。上書きしますか？`);
+        if (overwrite) {
+          words[existingIndex].jp = jp;
+          currentIndex = existingIndex;
+        } else {
+          return;
+        }
+      } else {
+        words.push({ en, jp });
+        currentIndex = words.length - 1;
+      }
+
+      saveWords();
+      renderWordList();
+      updateFlashcard();
+
+      englishInput.value = "";
+      japaneseInput.value = "";
+      englishInput.focus();
+    }
+
+    addButton.addEventListener("click", addWord);
+
+    englishInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (!japaneseInput.value.trim()) {
+          japaneseInput.focus();
+        } else {
+          addWord();
+        }
+      }
+    });
+
+    japaneseInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        addWord();
+      }
+    });
+
+    // ----- Excel から読み込み -----
+    function importFromExcel() {
+      const file = excelInput.files[0];
+      if (!file) {
+        alert("読み込む Excel ファイルを選択してください。");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: "array" });
+          const sheetName = workbook.SheetNames[0];
+          const sheet = workbook.Sheets[sheetName];
+
+          // 各行を JSON 形式に変換（ヘッダーは English / Japanese を想定）
+          const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+          let importedCount = 0;
+          json.forEach(row => {
+            const enRaw = row.English ?? row.english ?? "";
+            const jpRaw = row.Japanese ?? row.japanese ?? "";
+
+            const en = String(enRaw).trim();
+            const jp = String(jpRaw).trim();
+
+            if (!en || !jp) return;
+
+            // 既存単語と重複したら上書き、それ以外は追加
+            const existingIndex = words.findIndex(
+              w => w.en.toLowerCase() === en.toLowerCase()
+            );
+            if (existingIndex !== -1) {
+              words[existingIndex].jp = jp;
+            } else {
+              words.push({ en, jp });
+            }
+            importedCount++;
+          });
+
+          if (importedCount === 0) {
+            alert("読み込めるデータが見つかりませんでした。\nヘッダー行が English / Japanese になっているか確認してください。");
+            return;
+          }
+
+          // 並びを英単語のアルファベット順にしておく（お好みで）
+          words.sort((a, b) => a.en.localeCompare(b.en));
+
+          currentIndex = 0;
+          showEnglishSide = true;
+          saveWords();
+          renderWordList();
+          updateFlashcard();
+
+          alert(`Excel から ${importedCount} 件の単語を読み込みました。`);
+        } catch (err) {
+          console.error(err);
+          alert("Excel の読み込み中にエラーが発生しました。ファイル形式を確認してください。");
+        }
+      };
+
+      reader.readAsArrayBuffer(file);
+    }
+
+    importButton.addEventListener("click", importFromExcel);
+
+    // ----- カード操作 -----
+    prevButton.addEventListener("click", () => {
+      if (words.length === 0) return;
+      currentIndex = (currentIndex - 1 + words.length) % words.length;
+      updateFlashcard();
+    });
+
+    nextButton.addEventListener("click", () => {
+      if (words.length === 0) return;
+      currentIndex = (currentIndex + 1) % words.length;
+      updateFlashcard();
+    });
+
+    randomButton.addEventListener("click", () => {
+      if (words.length === 0) return;
+      const rand = Math.floor(Math.random() * words.length);
+      currentIndex = rand;
+      updateFlashcard();
+    });
+
+    flipButton.addEventListener("click", () => {
+      showEnglishSide = !showEnglishSide;
+      updateFlashcard();
+    });
+
+    clearAllButton.addEventListener("click", () => {
+      if (words.length === 0) return;
+      if (confirm("全ての単語を削除しますか？（元に戻せません）")) {
+        words = [];
+        currentIndex = 0;
+        saveWords();
+        renderWordList();
+        updateFlashcard();
+      }
+    });
+
+    // 初期化
+    loadWords();
+    renderWordList();
+    updateFlashcard();
+  </script>
+</body>
+</html>
