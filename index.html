@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>単語帳アプリ（Excel対応）</title>
+  <title>英語単語帳アプリ（Excel & JSON対応）</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- Excel(.xlsx)を読み込むためのライブラリ（SheetJS） -->
@@ -271,11 +271,11 @@
   <div class="app">
     <div class="top-row">
       <div>
-        <h1>英語単語帳アプリ（Excel対応）</h1>
-        <div class="subtitle">Excel から単語を読み込み、手入力でも追加できるフラッシュカード</div>
+        <h1>英語単語帳アプリ（Excel & JSON対応）</h1>
+        <div class="subtitle">Excel / JSON / 手入力から単語を追加できるフラッシュカード</div>
       </div>
       <div class="top-row-right">
-        <span class="tag">保存先: ブラウザ</span>
+        <span class="tag">保存先: ブラウザ（localStorage）</span>
       </div>
     </div>
 
@@ -293,6 +293,18 @@
     <div class="form-row">
       <input id="excelInput" type="file" accept=".xlsx,.xls" />
       <button id="importButton" class="btn btn-secondary" type="button">Excelを読み込む</button>
+    </div>
+
+    <!-- JSON エクスポート / インポート -->
+    <div class="section-title">JSONでバックアップ / 別端末へコピー</div>
+    <div class="hint">
+      「JSONとして書き出す」で <code>vocab.json</code> を保存し、別の端末で「JSONから読み込む」からそのファイルを選ぶと、<br />
+      その端末の単語帳が <b>JSONの内容で上書き</b> されます。
+    </div>
+    <div class="form-row">
+      <button id="jsonExportButton" class="btn btn-secondary" type="button">JSONとして書き出す</button>
+      <input id="jsonInput" type="file" accept=".json,application/json" />
+      <button id="jsonImportButton" class="btn btn-secondary" type="button">JSONから読み込む</button>
     </div>
 
     <!-- フラッシュカード表示 -->
@@ -317,7 +329,7 @@
     <!-- 単語一覧 -->
     <div class="section-title">登録されている単語一覧</div>
     <div class="word-list" id="wordListContainer">
-      <div class="empty-list">単語がまだありません。上のフォームやExcelから追加してください。</div>
+      <div class="empty-list">単語がまだありません。上のフォームやExcel / JSONから追加してください。</div>
     </div>
   </div>
 
@@ -348,6 +360,10 @@
     const excelInput = document.getElementById("excelInput");
     const importButton = document.getElementById("importButton");
 
+    const jsonExportButton = document.getElementById("jsonExportButton");
+    const jsonInput = document.getElementById("jsonInput");
+    const jsonImportButton = document.getElementById("jsonImportButton");
+
     // ローカルストレージから読み込み
     function loadWords() {
       try {
@@ -376,7 +392,7 @@
       if (words.length === 0) {
         const span = document.createElement("span");
         span.className = "card-text-empty";
-        span.textContent = "まだ単語が登録されていません。上のフォームやExcelから追加してください。";
+        span.textContent = "まだ単語が登録されていません。上のフォームやExcel / JSONから追加してください。";
         flashcard.appendChild(span);
         cardIndexLabel.textContent = "0 / 0";
         return;
@@ -401,7 +417,7 @@
       if (words.length === 0) {
         const div = document.createElement("div");
         div.className = "empty-list";
-        div.textContent = "単語がまだありません。上のフォームやExcelから追加してください。";
+        div.textContent = "単語がまだありません。上のフォームやExcel / JSONから追加してください。";
         wordListContainer.appendChild(div);
         return;
       }
@@ -528,7 +544,6 @@
           const sheetName = workbook.SheetNames[0];
           const sheet = workbook.Sheets[sheetName];
 
-          // 各行を JSON 形式に変換（ヘッダーは English / Japanese を想定）
           const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
           let importedCount = 0;
@@ -541,7 +556,6 @@
 
             if (!en || !jp) return;
 
-            // 既存単語と重複したら上書き、それ以外は追加
             const existingIndex = words.findIndex(
               w => w.en.toLowerCase() === en.toLowerCase()
             );
@@ -558,7 +572,6 @@
             return;
           }
 
-          // 並びを英単語のアルファベット順にしておく（お好みで）
           words.sort((a, b) => a.en.localeCompare(b.en));
 
           currentIndex = 0;
@@ -578,6 +591,85 @@
     }
 
     importButton.addEventListener("click", importFromExcel);
+
+    // ----- JSON エクスポート -----
+    function exportToJson() {
+      if (words.length === 0) {
+        alert("書き出す単語がありません。");
+        return;
+      }
+
+      const blob = new Blob([JSON.stringify(words, null, 2)], {
+        type: "application/json"
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "vocab.json";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    jsonExportButton.addEventListener("click", exportToJson);
+
+    // ----- JSON インポート -----
+    function importFromJson() {
+      const file = jsonInput.files[0];
+      if (!file) {
+        alert("読み込む JSON ファイルを選択してください。");
+        return;
+      }
+
+      if (!confirm("現在の単語をすべて消して、JSONファイルの内容で上書きしますか？")) {
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const text = e.target.result;
+          const parsed = JSON.parse(text);
+
+          if (!Array.isArray(parsed)) {
+            alert("JSON の形式が不正です。（配列ではありません）");
+            return;
+          }
+
+          const newWords = [];
+          parsed.forEach(item => {
+            if (!item) return;
+            const en = String(item.en ?? item.english ?? "").trim();
+            const jp = String(item.jp ?? item.japanese ?? "").trim();
+            if (!en || !jp) return;
+            newWords.push({ en, jp });
+          });
+
+          if (newWords.length === 0) {
+            alert("有効な単語データが見つかりませんでした。");
+            return;
+          }
+
+          words = newWords;
+          words.sort((a, b) => a.en.localeCompare(b.en));
+          currentIndex = 0;
+          showEnglishSide = true;
+          saveWords();
+          renderWordList();
+          updateFlashcard();
+
+          alert(`JSON から ${newWords.length} 件の単語を読み込みました。`);
+        } catch (err) {
+          console.error(err);
+          alert("JSON の読み込み中にエラーが発生しました。ファイルの内容を確認してください。");
+        }
+      };
+
+      reader.readAsText(file, "utf-8");
+    }
+
+    jsonImportButton.addEventListener("click", importFromJson);
 
     // ----- カード操作 -----
     prevButton.addEventListener("click", () => {
@@ -622,3 +714,4 @@
   </script>
 </body>
 </html>
+
