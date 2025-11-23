@@ -2,10 +2,10 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>英語単語帳アプリ（Excel & JSON対応）</title>
+  <title>英語単語帳アプリ（Excel対応＋検索）</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- Excel(.xlsx)を読み込むためのライブラリ（SheetJS） -->
+  <!-- Excel(.xlsx)を読み込む／書き出すためのライブラリ（SheetJS） -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
   <style>
@@ -252,6 +252,33 @@
       color: #777;
     }
 
+    .search-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      flex-wrap: wrap;
+    }
+
+    .search-row input {
+      flex: 1 1 160px;
+    }
+
+    .search-meta {
+      font-size: 0.78rem;
+      color: #777;
+      white-space: nowrap;
+    }
+
+    .order-select {
+      font-size: 0.78rem;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid #d0d0dc;
+      background: #fff;
+    }
+
     @media (max-width: 600px) {
       .app {
         margin: 12px;
@@ -264,6 +291,13 @@
         font-size: 1.15rem;
         padding: 18px 16px;
       }
+      .search-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .search-meta {
+        text-align: right;
+      }
     }
   </style>
 </head>
@@ -271,8 +305,8 @@
   <div class="app">
     <div class="top-row">
       <div>
-        <h1>英語単語帳アプリ（Excel & JSON対応）</h1>
-        <div class="subtitle">Excel / JSON / 手入力から単語を追加できるフラッシュカード</div>
+        <h1>英語単語帳アプリ（Excel対応＋検索）</h1>
+        <div class="subtitle">Excel / 手入力から単語を追加できるフラッシュカード</div>
       </div>
       <div class="top-row-right">
         <span class="tag">保存先: ブラウザ（localStorage）</span>
@@ -306,31 +340,31 @@
       </div>
     </div>
 
-    <!-- ③ 単語一覧 -->
+    <!-- ③ 単語一覧＋検索＋並び替え -->
     <div class="section-title">登録されている単語一覧</div>
+    <div class="search-row">
+      <input id="searchInput" type="text" placeholder="単語を検索（英語 or 日本語の一部）" />
+      <select id="orderSelect" class="order-select">
+        <option value="added">追加順で表示</option>
+        <option value="alpha">英語アルファベット順で表示</option>
+      </select>
+      <div class="search-meta" id="searchMeta">0 件中 0 件表示</div>
+    </div>
     <div class="word-list" id="wordListContainer">
-      <div class="empty-list">単語がまだありません。入力フォームやExcel / JSONから追加してください。</div>
+      <div class="empty-list">単語がまだありません。入力フォームやExcelから追加してください。</div>
     </div>
 
     <!-- ④ Excel から読み込み -->
     <div class="section-title">Excel から読み込む</div>
-    <div class="hint">※ 1行目が <code>English</code> / <code>Japanese</code> のヘッダーになっている形式（先ほどのExcelと同じ）</div>
+    <div class="hint">※ 1行目が <code>English</code> / <code>Japanese</code> のヘッダーになっている形式（あなたの単語リストと同じ）</div>
     <div class="form-row">
       <input id="excelInput" type="file" accept=".xlsx,.xls" />
       <button id="importButton" class="btn btn-secondary" type="button">Excelを読み込む</button>
     </div>
 
-    <!-- ⑤ JSON エクスポート / インポート -->
-    <div class="section-title">JSONでバックアップ / 別端末へコピー</div>
-    <div class="hint">
-      「JSONとして書き出す」で <code>vocab.json</code> を保存し、別の端末で「JSONから読み込む」からそのファイルを選ぶと、<br />
-      その端末の単語帳が <b>JSONの内容で上書き</b> されます。
-    </div>
+    <!-- ⑤ Excel に書き出す -->
     <div class="form-row">
-      <button id="jsonExportButton" class="btn btn-secondary" type="button">JSONとして書き出す</button>
-      <input id="jsonInput" type="file" accept=".json,application/json" />
-      <button id="jsonImportButton" class="btn btn-secondary" type="button">JSONから読み込む</button>
-      <button id="jsonPasteButton" class="btn btn-secondary" type="button">ペーストして読み込む（スマホ対応）</button>
+      <button id="exportExcelButton" class="btn btn-secondary" type="button">Excelを書き出す（英語アルファベット順）</button>
     </div>
   </div>
 
@@ -342,6 +376,8 @@
     let words = [];
     let currentIndex = 0;
     let showEnglishSide = true; // true: English, false: Japanese
+    let searchQuery = "";       // 検索文字列
+    let orderMode = "added";    // "added" | "alpha"
 
     const englishInput = document.getElementById("englishInput");
     const japaneseInput = document.getElementById("japaneseInput");
@@ -357,13 +393,13 @@
     const clearAllButton = document.getElementById("clearAllButton");
 
     const wordListContainer = document.getElementById("wordListContainer");
+    const searchInput = document.getElementById("searchInput");
+    const searchMeta = document.getElementById("searchMeta");
+    const orderSelect = document.getElementById("orderSelect");
 
     const excelInput = document.getElementById("excelInput");
     const importButton = document.getElementById("importButton");
-
-    const jsonExportButton = document.getElementById("jsonExportButton");
-    const jsonInput = document.getElementById("jsonInput");
-    const jsonImportButton = document.getElementById("jsonImportButton");
+    const exportExcelButton = document.getElementById("exportExcelButton");
 
     // ローカルストレージから読み込み
     function loadWords() {
@@ -393,13 +429,12 @@
       if (words.length === 0) {
         const span = document.createElement("span");
         span.className = "card-text-empty";
-        span.textContent = "まだ単語が登録されていません。入力フォームやExcel / JSONから追加してください。";
+        span.textContent = "まだ単語が登録されていません。入力フォームやExcelから追加してください。";
         flashcard.appendChild(span);
         cardIndexLabel.textContent = "0 / 0";
         return;
       }
 
-      // インデックスが範囲外にならないように調整
       if (currentIndex < 0) currentIndex = 0;
       if (currentIndex >= words.length) currentIndex = words.length - 1;
 
@@ -412,14 +447,48 @@
       cardIndexLabel.textContent = (currentIndex + 1) + " / " + words.length;
     }
 
+    // 検索条件に合うかどうか
+    function matchesSearch(word, query) {
+      if (!query) return true;
+      const q = query.toLowerCase();
+      return (
+        word.en.toLowerCase().includes(q) ||
+        word.jp.toLowerCase().includes(q)
+      );
+    }
+
     function renderWordList() {
       wordListContainer.innerHTML = "";
 
       if (words.length === 0) {
         const div = document.createElement("div");
         div.className = "empty-list";
-        div.textContent = "単語がまだありません。入力フォームやExcel / JSONから追加してください。";
+        div.textContent = "単語がまだありません。入力フォームやExcelから追加してください。";
         wordListContainer.appendChild(div);
+        searchMeta.textContent = "0 件中 0 件表示";
+        return;
+      }
+
+      // 元配列 + インデックスを持った配列を作る
+      const indexed = words.map((word, index) => ({ word, index }));
+
+      // 検索でフィルタ
+      let displayItems = indexed.filter(item => matchesSearch(item.word, searchQuery));
+
+      // 並び替えモードに応じてソート
+      if (orderMode === "alpha") {
+        displayItems = displayItems.slice().sort((a, b) =>
+          a.word.en.localeCompare(b.word.en)
+        );
+      }
+      const visibleCount = displayItems.length;
+
+      if (visibleCount === 0) {
+        const div = document.createElement("div");
+        div.className = "empty-list";
+        div.textContent = "検索条件に一致する単語がありません。";
+        wordListContainer.appendChild(div);
+        searchMeta.textContent = `${words.length} 件中 0 件表示`;
         return;
       }
 
@@ -436,8 +505,9 @@
 
       const tbody = document.createElement("tbody");
 
-      words.forEach((word, index) => {
+      displayItems.forEach(({ word, index }) => {
         const tr = document.createElement("tr");
+        tr.style.cursor = "pointer";
 
         const tdEn = document.createElement("td");
         tdEn.className = "cell-en";
@@ -452,7 +522,8 @@
         delButton.textContent = "削除";
         delButton.className = "btn btn-ghost";
         delButton.style.fontSize = "0.75rem";
-        delButton.addEventListener("click", () => {
+        delButton.addEventListener("click", (event) => {
+          event.stopPropagation(); // 行クリック（カードジャンプ）を発火させない
           if (confirm(`「${word.en}」を削除しますか？`)) {
             words.splice(index, 1);
             if (currentIndex >= words.length) {
@@ -468,11 +539,21 @@
         tr.appendChild(tdEn);
         tr.appendChild(tdJp);
         tr.appendChild(tdAction);
+
+        // 行クリックでその単語のカードへジャンプ
+        tr.addEventListener("click", () => {
+          currentIndex = index;
+          showEnglishSide = true; // 英語側から表示
+          updateFlashcard();
+        });
+
         tbody.appendChild(tr);
       });
 
       table.appendChild(tbody);
       wordListContainer.appendChild(table);
+
+      searchMeta.textContent = `${words.length} 件中 ${visibleCount} 件表示`;
     }
 
     // ----- 単語追加（手入力） -----
@@ -485,7 +566,6 @@
         return;
       }
 
-      // すでに同じ英単語がある場合は上書きするか確認
       const existingIndex = words.findIndex(w => w.en.toLowerCase() === en.toLowerCase());
       if (existingIndex !== -1) {
         const overwrite = confirm(`「${en}」はすでに登録されています。上書きしますか？`);
@@ -529,6 +609,18 @@
       }
     });
 
+    // ----- 検索 -----
+    searchInput.addEventListener("input", (e) => {
+      searchQuery = e.target.value;
+      renderWordList();
+    });
+
+    // ----- 並び替えモード -----
+    orderSelect.addEventListener("change", (e) => {
+      orderMode = e.target.value; // "added" or "alpha"
+      renderWordList();
+    });
+
     // ----- Excel から読み込み -----
     function importFromExcel() {
       const file = excelInput.files[0];
@@ -563,6 +655,7 @@
             if (existingIndex !== -1) {
               words[existingIndex].jp = jp;
             } else {
+              // 追加順を保つため、ここではソートせず末尾に追加
               words.push({ en, jp });
             }
             importedCount++;
@@ -572,8 +665,6 @@
             alert("読み込めるデータが見つかりませんでした。\nヘッダー行が English / Japanese になっているか確認してください。");
             return;
           }
-
-          words.sort((a, b) => a.en.localeCompare(b.en));
 
           currentIndex = 0;
           showEnglishSide = true;
@@ -593,84 +684,32 @@
 
     importButton.addEventListener("click", importFromExcel);
 
-    // ----- JSON エクスポート -----
-    function exportToJson() {
+    // ----- Excel に書き出し（常に英語アルファベット順） -----
+    function exportToExcel() {
       if (words.length === 0) {
         alert("書き出す単語がありません。");
         return;
       }
 
-      const blob = new Blob([JSON.stringify(words, null, 2)], {
-        type: "application/json"
+      // words のコピーを英語アルファベット順にソート
+      const sorted = words.slice().sort((a, b) =>
+        a.en.localeCompare(b.en)
+      );
+
+      // ヘッダー行＋データ行の2列（English, Japanese）
+      const data = [["English", "Japanese"]];
+      sorted.forEach(word => {
+        data.push([word.en, word.jp]);
       });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "vocab.json";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      XLSX.utils.book_append_sheet(wb, ws, "Vocabulary");
+
+      XLSX.writeFile(wb, "vocabulary.xlsx");
     }
 
-    jsonExportButton.addEventListener("click", exportToJson);
-
-    // ----- JSON インポート -----
-    function importFromJson() {
-      const file = jsonInput.files[0];
-      if (!file) {
-        alert("読み込む JSON ファイルを選択してください。");
-        return;
-      }
-
-      if (!confirm("現在の単語をすべて消して、JSONファイルの内容で上書きしますか？")) {
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        try {
-          const text = e.target.result;
-          const parsed = JSON.parse(text);
-
-          if (!Array.isArray(parsed)) {
-            alert("JSON の形式が不正です。（配列ではありません）");
-            return;
-          }
-
-          const newWords = [];
-          parsed.forEach(item => {
-            if (!item) return;
-            const en = String(item.en ?? item.english ?? "").trim();
-            const jp = String(item.jp ?? item.japanese ?? "").trim();
-            if (!en || !jp) return;
-            newWords.push({ en, jp });
-          });
-
-          if (newWords.length === 0) {
-            alert("有効な単語データが見つかりませんでした。");
-            return;
-          }
-
-          words = newWords;
-          words.sort((a, b) => a.en.localeCompare(b.en));
-          currentIndex = 0;
-          showEnglishSide = true;
-          saveWords();
-          renderWordList();
-          updateFlashcard();
-
-          alert(`JSON から ${newWords.length} 件の単語を読み込みました。`);
-        } catch (err) {
-          console.error(err);
-          alert("JSON の読み込み中にエラーが発生しました。ファイルの内容を確認してください。");
-        }
-      };
-
-      reader.readAsText(file, "utf-8");
-    }
-
-    jsonImportButton.addEventListener("click", importFromJson);
+    exportExcelButton.addEventListener("click", exportToExcel);
 
     // ----- カード操作 -----
     prevButton.addEventListener("click", () => {
@@ -712,117 +751,6 @@
     loadWords();
     renderWordList();
     updateFlashcard();
-    // ========== JSONファイルのペースト対応 ==========
-document.addEventListener("paste", async (event) => {
-  const items = event.clipboardData?.items;
-  if (!items) return;
-
-  for (const item of items) {
-    // ファイルかどうかチェック
-    if (item.kind === "file") {
-      const file = item.getAsFile();
-      if (!file) continue;
-
-      // JSONファイルのみ受け付ける
-      if (!file.name.endsWith(".json")) {
-        alert("貼り付けられたファイルは JSON ではありません。");
-        return;
-      }
-
-      if (!confirm("現在の単語をすべて消して、貼り付けた JSON ファイルの内容で上書きしますか？")) {
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const text = e.target.result;
-          const parsed = JSON.parse(text);
-
-          // JSON → 単語配列への変換
-          const newWords = parsed
-            .filter(item => item && item.en && item.jp)
-            .map(item => ({
-              en: String(item.en).trim(),
-              jp: String(item.jp).trim()
-            }));
-
-          if (newWords.length === 0) {
-            alert("有効な単語データが JSON 内に見つかりませんでした。");
-            return;
-          }
-
-          // 保存＆更新
-          words = newWords.sort((a, b) => a.en.localeCompare(b.en));
-          currentIndex = 0;
-          showEnglishSide = true;
-
-          saveWords();
-          renderWordList();
-          updateFlashcard();
-
-          alert(`JSON（貼り付け）から ${newWords.length} 件の単語を読み込みました。`);
-        } catch (err) {
-          console.error(err);
-          alert("JSONの解析に失敗しました。ファイルの内容を確認してください。");
-        }
-      };
-
-      reader.readAsText(file, "utf-8");
-      return; // ファイルがあったら処理終了
-    }
-  }
-});
-    const jsonPasteButton = document.getElementById("jsonPasteButton");
-
-jsonPasteButton.addEventListener("click", async () => {
-  if (!navigator.clipboard?.read) {
-    alert("お使いのブラウザはファイルのペーストに対応していません。");
-    return;
-  }
-
-  try {
-    const items = await navigator.clipboard.read();
-
-    for (const item of items) {
-      if (item.types.includes("application/json")) {
-        const blob = await item.getType("application/json");
-
-        if (!confirm("現在の単語をすべて消して、ペーストされたJSONで上書きしますか？")) return;
-
-        const text = await blob.text();
-        const parsed = JSON.parse(text);
-
-        const newWords = parsed
-          .filter(w => w && w.en && w.jp)
-          .map(w => ({ en: w.en.trim(), jp: w.jp.trim() }));
-
-        if (newWords.length === 0) {
-          alert("JSONに単語データが見つかりませんでした。");
-          return;
-        }
-
-        words = newWords.sort((a, b) => a.en.localeCompare(b.en));
-        currentIndex = 0;
-        showEnglishSide = true;
-        saveWords();
-        renderWordList();
-        updateFlashcard();
-
-        alert(`ペーストされたJSONから ${newWords.length} 件の単語を読み込みました。`);
-        return;
-      }
-    }
-
-    alert("クリップボード内にJSONファイルが見つかりませんでした。");
-
-  } catch (err) {
-    console.error(err);
-    alert("クリップボードの読み取りに失敗しました。\nコピーした直後であるか、ブラウザ設定をご確認ください。");
-  }
-});
   </script>
 </body>
 </html>
-
-
