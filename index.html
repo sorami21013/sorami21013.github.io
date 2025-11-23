@@ -711,6 +711,67 @@
     loadWords();
     renderWordList();
     updateFlashcard();
+    // ========== JSONファイルのペースト対応 ==========
+document.addEventListener("paste", async (event) => {
+  const items = event.clipboardData?.items;
+  if (!items) return;
+
+  for (const item of items) {
+    // ファイルかどうかチェック
+    if (item.kind === "file") {
+      const file = item.getAsFile();
+      if (!file) continue;
+
+      // JSONファイルのみ受け付ける
+      if (!file.name.endsWith(".json")) {
+        alert("貼り付けられたファイルは JSON ではありません。");
+        return;
+      }
+
+      if (!confirm("現在の単語をすべて消して、貼り付けた JSON ファイルの内容で上書きしますか？")) {
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const text = e.target.result;
+          const parsed = JSON.parse(text);
+
+          // JSON → 単語配列への変換
+          const newWords = parsed
+            .filter(item => item && item.en && item.jp)
+            .map(item => ({
+              en: String(item.en).trim(),
+              jp: String(item.jp).trim()
+            }));
+
+          if (newWords.length === 0) {
+            alert("有効な単語データが JSON 内に見つかりませんでした。");
+            return;
+          }
+
+          // 保存＆更新
+          words = newWords.sort((a, b) => a.en.localeCompare(b.en));
+          currentIndex = 0;
+          showEnglishSide = true;
+
+          saveWords();
+          renderWordList();
+          updateFlashcard();
+
+          alert(`JSON（貼り付け）から ${newWords.length} 件の単語を読み込みました。`);
+        } catch (err) {
+          console.error(err);
+          alert("JSONの解析に失敗しました。ファイルの内容を確認してください。");
+        }
+      };
+
+      reader.readAsText(file, "utf-8");
+      return; // ファイルがあったら処理終了
+    }
+  }
+});
   </script>
 </body>
 </html>
