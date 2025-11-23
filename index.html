@@ -330,6 +330,7 @@
       <button id="jsonExportButton" class="btn btn-secondary" type="button">JSONとして書き出す</button>
       <input id="jsonInput" type="file" accept=".json,application/json" />
       <button id="jsonImportButton" class="btn btn-secondary" type="button">JSONから読み込む</button>
+      <button id="jsonPasteButton" class="btn btn-secondary" type="button">ペーストして読み込む（スマホ対応）</button>
     </div>
   </div>
 
@@ -770,6 +771,54 @@ document.addEventListener("paste", async (event) => {
       reader.readAsText(file, "utf-8");
       return; // ファイルがあったら処理終了
     }
+  }
+});
+    const jsonPasteButton = document.getElementById("jsonPasteButton");
+
+jsonPasteButton.addEventListener("click", async () => {
+  if (!navigator.clipboard?.read) {
+    alert("お使いのブラウザはファイルのペーストに対応していません。");
+    return;
+  }
+
+  try {
+    const items = await navigator.clipboard.read();
+
+    for (const item of items) {
+      if (item.types.includes("application/json")) {
+        const blob = await item.getType("application/json");
+
+        if (!confirm("現在の単語をすべて消して、ペーストされたJSONで上書きしますか？")) return;
+
+        const text = await blob.text();
+        const parsed = JSON.parse(text);
+
+        const newWords = parsed
+          .filter(w => w && w.en && w.jp)
+          .map(w => ({ en: w.en.trim(), jp: w.jp.trim() }));
+
+        if (newWords.length === 0) {
+          alert("JSONに単語データが見つかりませんでした。");
+          return;
+        }
+
+        words = newWords.sort((a, b) => a.en.localeCompare(b.en));
+        currentIndex = 0;
+        showEnglishSide = true;
+        saveWords();
+        renderWordList();
+        updateFlashcard();
+
+        alert(`ペーストされたJSONから ${newWords.length} 件の単語を読み込みました。`);
+        return;
+      }
+    }
+
+    alert("クリップボード内にJSONファイルが見つかりませんでした。");
+
+  } catch (err) {
+    console.error(err);
+    alert("クリップボードの読み取りに失敗しました。\nコピーした直後であるか、ブラウザ設定をご確認ください。");
   }
 });
   </script>
