@@ -279,7 +279,7 @@
       </div>
     </div>
 
-    <!-- 手入力で追加 -->
+    <!-- ① 手入力で追加 -->
     <div class="section-title">単語を追加（手入力）</div>
     <div class="form-row">
       <input id="englishInput" type="text" placeholder="English（例: empirical）" />
@@ -287,27 +287,7 @@
       <button id="addButton" class="btn btn-primary" type="button">単語を追加</button>
     </div>
 
-    <!-- Excel から読み込み -->
-    <div class="section-title">Excel から読み込む</div>
-    <div class="hint">※ 1行目が <code>English</code> / <code>Japanese</code> のヘッダーになっている形式（先ほどのExcelと同じ）</div>
-    <div class="form-row">
-      <input id="excelInput" type="file" accept=".xlsx,.xls" />
-      <button id="importButton" class="btn btn-secondary" type="button">Excelを読み込む</button>
-    </div>
-
-    <!-- JSON エクスポート / インポート -->
-    <div class="section-title">JSONでバックアップ / 別端末へコピー</div>
-    <div class="hint">
-      「JSONとして書き出す」で <code>vocab.json</code> を保存し、別の端末で「JSONから読み込む」からそのファイルを選ぶと、<br />
-      その端末の単語帳が <b>JSONの内容で上書き</b> されます。
-    </div>
-    <div class="form-row">
-      <button id="jsonExportButton" class="btn btn-secondary" type="button">JSONとして書き出す</button>
-      <input id="jsonInput" type="file" accept=".json,application/json" />
-      <button id="jsonImportButton" class="btn btn-secondary" type="button">JSONから読み込む</button>
-    </div>
-
-    <!-- フラッシュカード表示 -->
+    <!-- ② フラッシュカード表示 -->
     <div class="section-title">フラッシュカード</div>
     <div class="flashcard-container">
       <div class="card-side-label" id="cardSideLabel">SIDE: English</div>
@@ -326,10 +306,30 @@
       </div>
     </div>
 
-    <!-- 単語一覧 -->
+    <!-- ③ 単語一覧 -->
     <div class="section-title">登録されている単語一覧</div>
     <div class="word-list" id="wordListContainer">
-      <div class="empty-list">単語がまだありません。上のフォームやExcel / JSONから追加してください。</div>
+      <div class="empty-list">単語がまだありません。入力フォームやExcel / JSONから追加してください。</div>
+    </div>
+
+    <!-- ④ Excel から読み込み -->
+    <div class="section-title">Excel から読み込む</div>
+    <div class="hint">※ 1行目が <code>English</code> / <code>Japanese</code> のヘッダーになっている形式（先ほどのExcelと同じ）</div>
+    <div class="form-row">
+      <input id="excelInput" type="file" accept=".xlsx,.xls" />
+      <button id="importButton" class="btn btn-secondary" type="button">Excelを読み込む</button>
+    </div>
+
+    <!-- ⑤ JSON エクスポート / インポート -->
+    <div class="section-title">JSONでバックアップ / 別端末へコピー</div>
+    <div class="hint">
+      「JSONとして書き出す」で <code>vocab.json</code> を保存し、別の端末で「JSONから読み込む」からそのファイルを選ぶと、<br />
+      その端末の単語帳が <b>JSONの内容で上書き</b> されます。
+    </div>
+    <div class="form-row">
+      <button id="jsonExportButton" class="btn btn-secondary" type="button">JSONとして書き出す</button>
+      <input id="jsonInput" type="file" accept=".json,application/json" />
+      <button id="jsonImportButton" class="btn btn-secondary" type="button">JSONから読み込む</button>
     </div>
   </div>
 
@@ -392,7 +392,7 @@
       if (words.length === 0) {
         const span = document.createElement("span");
         span.className = "card-text-empty";
-        span.textContent = "まだ単語が登録されていません。上のフォームやExcel / JSONから追加してください。";
+        span.textContent = "まだ単語が登録されていません。入力フォームやExcel / JSONから追加してください。";
         flashcard.appendChild(span);
         cardIndexLabel.textContent = "0 / 0";
         return;
@@ -417,7 +417,7 @@
       if (words.length === 0) {
         const div = document.createElement("div");
         div.className = "empty-list";
-        div.textContent = "単語がまだありません。上のフォームやExcel / JSONから追加してください。";
+        div.textContent = "単語がまだありません。入力フォームやExcel / JSONから追加してください。";
         wordListContainer.appendChild(div);
         return;
       }
@@ -714,4 +714,5 @@
   </script>
 </body>
 </html>
+
 
